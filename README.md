@@ -1,2 +1,2 @@
 # ks-maker
-Produces colloidal silver with Arduino Nano
+Produces colloidal silver with Arduino Nano (using Platform.IO)
