@@ -1,4 +1,8 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 // define Arduino ports
 const byte INPUT_CHANGE_VALUE = 2;    // Arduino port D2
@@ -24,6 +28,9 @@ const unsigned long INTERVAL_MEASURE_CURRENT_MILLIS = 10000;
 const byte CALCULATE_PPM_AFTER_NUMBER_CURRENT_MEASUREMENTS = 6;
 const unsigned int RESISTOR_MEASUREMENT_OHM = 1000;
 const float REF_VOLTAGE = 4.66;
+const char* PPM      = "ppm: ";
+const char* ML       = "ml:  ";
+const char* MINUTES  = "min: ";
 
 // variables
 byte valButtonChangeValue = 0;
@@ -35,29 +42,68 @@ unsigned long lastMillisMeasuredCurrent = 0;
 byte numberCurrentMeasurements = 0;
 float ppmSum = 0;
 float mASum = 0;
+float minutesSum = 0.0;
+
+// Display
+#define OLED_RESET 5
+Adafruit_SSD1306 display(OLED_RESET);
+#if (SSD1306_LCDHEIGHT != 64)
+#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+#endif
+
+void initializeDisplay() {
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 128x64)
+  display.setTextColor(WHITE);
+  display.setTextSize(2);
+  display.clearDisplay();
+  display.display();
+}
 
 void printPpm() {
-  Serial.println("ppm: " + String(ppmTarget));
+  display.clearDisplay();
+  display.setCursor(0,0);
+  String text = PPM + String(ppmTarget);
+  display.print(text);
+  display.display();
 }
 
 void printVolume() {
-  Serial.println("ml: " + String(volumeMlTarget));
+  display.clearDisplay();
+  display.setCursor(0,0);
+  String text = ML + String(volumeMlTarget);
+  display.print(text);
+  display.display();
 }
 
 void printAskStart() {
-  Serial.println("Press Next to start");
-}
-
-void printRunning() {
-  Serial.println("RUNNING...");
+  display.clearDisplay();
+  display.setCursor(0,0);
+  String textPpm = PPM + String(ppmTarget);
+  String textMl = ML + String(volumeMlTarget);
+  display.println(textPpm);
+  display.println(textMl);
+  display.println("Press Next");
+  display.display();
 }
 
 void printCurrentPpm() {
-  Serial.println("ppm: " + String(ppmSum));
+  display.clearDisplay();
+  display.setCursor(0,0);
+  String textPpm = PPM + String(ppmSum);
+  String textMinutes = MINUTES + String(minutesSum);
+  display.println(textPpm);
+  display.println(textMinutes);
+  display.display();
 }
 
 void printFinished() {
-  Serial.println("Finished!");
+  display.clearDisplay();
+  display.setCursor(0,0);
+  String textPpm = PPM + String(ppmSum);
+  display.println(textPpm);
+  display.println();
+  display.println("Finished!");
+  display.display();
 }
 
 void start() {
@@ -121,7 +167,7 @@ void handleButtonNext() {
         printAskStart();
       } else if (mode == MODE_RUNNING) {
         start();
-        printRunning();
+        printCurrentPpm();
       }
     }
   }
@@ -146,14 +192,16 @@ void updatePpm() {
   float ppmOfInterval = (minutes * mAAverage) / (15.0 * liter);
   Serial.println("Calculated ppm: " + String(ppmOfInterval) + " ppm");
   ppmSum = ppmSum + ppmOfInterval;
+  minutesSum = minutesSum + minutes;
 }
 
 void setup()
 {
+  Serial.begin(9600);
+  initializeDisplay();
   pinMode(INPUT_CHANGE_VALUE, INPUT);
   pinMode(INPUT_NEXT, INPUT);
   pinMode(OUTPUT_POWER, OUTPUT);
-  Serial.begin(9600);
 
   printPpm(); // print initial ppm value
 }
