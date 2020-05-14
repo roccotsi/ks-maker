@@ -28,7 +28,9 @@ const byte STEP_PPM = 5;
 const unsigned int STEP_VOLUME = 50;
 const unsigned long INTERVAL_MEASURE_CURRENT_MILLIS = 10000;
 const byte CALCULATE_PPM_AFTER_NUMBER_CURRENT_MEASUREMENTS = 6;
-const unsigned int RESISTOR_MEASUREMENT_OHM = 10000;
+const float RESISTOR_MEASUREMENT_OHM = 10000.0;
+// const float CURRENT_MULTIPLICATOR = 17.73; // calculated
+const float CURRENT_MULTIPLICATOR = 19.38; // with correction factor
 const float REF_VOLTAGE = 5.00;
 const char* PPM      = "ppm: ";
 const char* ML       = "ml:  ";
@@ -45,7 +47,6 @@ byte numberCurrentMeasurements = 0;
 float ppmSum = 0;
 float mASum = 0;
 float minutesSum = 0.0;
-float calibrationMA = 0.0;
 byte outputOn = 0;
 
 // Display
@@ -113,21 +114,17 @@ void printFinished() {
 void printDebugCurrentVoltAndMA() {
   float volt = measureVolt();
   float mA = calculateMA(volt);
-  //float correctedMA = mA - ((REF_VOLTAGE / (1100.0 + 68000.0 + 10000.0) * 1000.0));
-  //float correctedMA = mA - calibrationMA;
   display.clearDisplay();
   display.setCursor(0,0);
   String textMA = String(mA) + " mA";
   String textVolt = String(volt) + " V";
-  //String textCorrectedMA = String(correctedMA) + " mA";
   String textRunning = (mode == MODE_RUNNING) ? "ON" : "OFF";
   display.println(textVolt);
   display.println(textMA);
-  //display.println(textCorrectedMA);
   display.println(textRunning);
   display.display();
 }
-
+  //calibrate(); // measure calibration current
 void switchOutputOn() {
   digitalWrite(OUTPUT_POWER, 1);
   outputOn = 1;
@@ -210,13 +207,14 @@ float measureVolt() {
 
 float calculateMA(float volt) {
   // calculate current in mA
-  float mA = (volt / RESISTOR_MEASUREMENT_OHM) * 1000.0;
-  if (outputOn == 1) {
-    mA = mA - calibrationMA;
+  float currentMeasureMA = (volt / RESISTOR_MEASUREMENT_OHM) * 1000.0;
+  float currentTotalMA = CURRENT_MULTIPLICATOR * currentMeasureMA;
+  if (currentTotalMA < 0) {
+    currentTotalMA = 0.0;
   }
   Serial.println(String(volt) + " V");
-  Serial.println(String(mA) + " mA");
-  return mA;
+  Serial.println(String(currentTotalMA) + " mA");
+  return currentTotalMA;
 }
 
 void updatePpm() {
@@ -229,14 +227,6 @@ void updatePpm() {
   Serial.println("Calculated ppm: " + String(ppmOfInterval) + " ppm");
   ppmSum = ppmSum + ppmOfInterval;
   minutesSum = minutesSum + minutes;
-}
-
-/* Measure the current for calibration */
-void calibrate() {
-  switchOutputOn();
-  float volt = measureVolt();
-  calibrationMA = calculateMA(volt);
-  switchOutputOff();
 }
 
 /* Show voltage and current for calibration reasons */
@@ -260,9 +250,9 @@ void setup()
   pinMode(OUTPUT_POWER, OUTPUT);
   pinMode(OUTPUT_TOGGLE, OUTPUT);
 
-  printPpm(); // print initial ppm value
-
-  calibrate(); // measure calibration current
+  if (DEBUG == 0) {
+    printPpm(); // print initial ppm value
+  }
 }
 
 void loop()
